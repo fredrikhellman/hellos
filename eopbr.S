@@ -1,0 +1,3 @@
+	.data
+	.byte 0x55
+	.byte 0xaa
