@@ -2,19 +2,13 @@
 	.code16
 	.text
 _start:
-	mov si, offset _free_mem_msg
-	call _print_string
 	call _free_mem
-	jmp _infloop
-	
-	xor ch, ch
-	mov ax, cx
-	call _print_word_hex
-	mov ax, bx
-	call _print_word_hex
-	mov si, offset _free_mem_kb_msg
-	call _print_string
-	jmp _infloop
+	mov ax, 0x1000
+	mov es, ax
+	mov di, 0x0
+	call _read_kernel
+	mov eax, 0x10000
+	jmp _protected_mode
 	
 // print ASCII char in al
 _print_char:
@@ -82,9 +76,9 @@ _print_word_hex:
 
 _print_dword_hex:
 	push eax
-	rol eax,16
+	rol eax, 16
 	call _print_word_hex
-	rol eax,16
+	rol eax, 16
 	call _print_word_hex
 	pop eax
 	ret
@@ -97,7 +91,8 @@ _free_mem:
 	push edx
 	push es
 	push di
-
+	push si
+	
 	// Clear ebx for first call
 	xor ebx, ebx
 _free_mem_next:
@@ -110,17 +105,10 @@ _free_mem_next:
 	mov di, offset _free_mem_address
 	int 0x15
 	// Check for error
-	jc _free_mem_error
+	jc _error
 	cmp eax, 0x534d4150
-	jne _free_mem_error
+	jne _error
 	jmp _free_mem_ok
-_free_mem_error:
-	mov si, offset _free_mem_msg_error
-	call _print_string
-	jmp _infloop
-_free_mem_msg_error:
-	.ascii "Failed to get free mem."
-	.byte 0
 _free_mem_address:
 	.skip 8
 _free_mem_size:
@@ -167,6 +155,7 @@ _free_mem_ok:
 	jnz _free_mem_next
 	
 _free_mem_nonzero:
+	pop si
 	pop di
 	pop es
 	pop edx
@@ -176,21 +165,158 @@ _free_mem_nonzero:
 	popf
 	ret
 _free_mem_msg_addr:
-	.ascii "addr: "
+	.ascii "a: "
 	.byte 0
 _free_mem_msg_size:
-	.ascii "size: "
+	.ascii "s: "
 	.byte 0
 _free_mem_msg_type:
-	.ascii "type: "
-	.byte 0
-	
-_free_mem_msg:
-	.ascii "memory:\r\n"
+	.ascii "t: "
 	.byte 0
 
-_free_mem_kb_msg:
-	.ascii " kiB"
+	.set PORT, 0x3f8
+_read_kernel:
+	push ax
+	push bx
+	push cx
+	push dx
+	push si
+	push di
+
+	// Disable serial port interrupts
+	mov al, 0x00
+	mov dx, PORT + 1
+	out dx, al
+
+	// Set baud rate to maximum
+	mov al, 0x80
+	mov dx, PORT + 3
+	out dx, al
+	
+	mov al, 0x01
+	mov dx, PORT
+	out dx, al
+
+	mov al, 0x00
+	mov dx, PORT + 1
+	out dx, al
+
+	// Set 8N1
+	mov al, 0x03
+	mov dx, PORT + 3
+	out dx, al
+
+	// Not sure what this is
+	mov al, 0x0F
+	mov dx, PORT + 4
+	out dx, al
+
+	// Read until the EOK message arrives
+_read_kernel_reset_eok:
+	mov cl, 0x30
+_read_kernel_wait:
+	mov dx, PORT + 5
+	inb al, dx
+	test al, 0xe
+	jnz _error
+	test al, 1
+	jz _read_kernel_wait
+
+	// Data is waiting
+	mov dx, PORT
+	inb al, dx
+
+	// Print byte
+	call _print_char
+	
+	// Store byte in ds:di
+	stosb
+
+	// Check for EOK message
+	// Need to restore DS register temporarily
+	cmp al, cl
+	je _read_kernel_is_eok
+	jmp _read_kernel_reset_eok
+_read_kernel_is_eok:
+	inc cl
+	cmp cl, 0x3a
+	je _read_kernel_done
+	jmp _read_kernel_wait
+_read_kernel_done:
+	pop di
+	pop si
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
+_protected_mode:
+	mov si, offset _protected_mode_msg
+	call _print_string
+	
+	cli
+	mov dword ptr [_gdtr_address], offset _gdt
+	lgdt [_gdtr]
+
+	push eax
+	mov eax, cr0 
+	or al, 1
+	mov cr0, eax
+	pop eax
+	
+	jmp 0x8:_protected_mode_jump
+	.code32
+	.align 8
+_protected_mode_jump:
+	mov bx, 0x10
+	mov ds, bx
+	mov es, bx
+	mov fs, bx
+	mov gs, bx
+	mov ss, bx
+	jmp eax
+	.code16
+ 	
+_gdtr:
+_gdtr_limit:
+	.word _gdt_end - _gdt
+_gdtr_address:
+	.long 0
+_gdt:
+	.long 0
+	.long 0
+	// 0x00|c|f 9b|00  0000 ffff
+	//   ba|f|l ab|ba  base  lim
+	//      P  DPL  S E DC? RW A
+	// ab = 1  0 0  1 1  0  1  1 = 9b
+	//      G DB L R
+	//  g = 1 1  0 1 = d
+	// lim = 0xfffff
+	.long 0x0000ffff
+	.long 0x00cf9b00
+	// 0x00|c|f 9b|00  0000 ffff
+	//   ba|f|l ab|ba  base  lim
+	//      P  DPL  S E DC? RW A
+	// ab = 1  0 0  1 0  0  1  1 = 93
+	//      G DB L R
+	//  g = 1 1  0 1 = d
+	// lim = 0xfffff
+	.long 0x0000ffff
+	.long 0x00cf9300
+_gdt_end:
+
+_protected_mode_msg:
+	.ascii "p"
+	.byte 0
+	
+_error:
+	mov si, offset _msg_fail
+	call _print_string
+	jmp _infloop
+	
+_msg_fail:
+	.ascii "fail"
 	.byte 0
 	
 _infloop:
