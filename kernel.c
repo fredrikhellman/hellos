@@ -3,6 +3,7 @@
 
 __attribute__ ((section (".text_start")))
 void start()  {
+  /* stack pointer is unchanged since real mode... */
   char buf[10];
   serial_init();
   serial_puts("namn: ");

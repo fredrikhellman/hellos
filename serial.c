@@ -25,18 +25,18 @@ static char inb(short port) {
 }
 
 void serial_init() {
-  // Disable interrupts
+  /* Disable interrupts */
   outb(SERIAL_PORT_INT_ENABLE, 0);
 
-  // Set baud rate to max
+  /* Set baud rate to max */
   outb(SERIAL_PORT_LCR, 0x80);
   outb(SERIAL_PORT_BAUD_LO, 1);
   outb(SERIAL_PORT_BAUD_HI, 0);
 
-  // Set 8N1
+  /* Set 8N1 */
   outb(SERIAL_PORT_LCR, 0x03);
 
-  // Not sure what this does
+  /* Not sure what this does */
   outb(SERIAL_PORT_MCR, 0x0F);
 }
 
