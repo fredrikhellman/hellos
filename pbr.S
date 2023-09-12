@@ -24,7 +24,6 @@ _print_char:
 
 // print null terminated ASCII string in ds:si
 _print_string:
-	pushf
 	push ax
 	push si
 	cld
@@ -37,15 +36,11 @@ _print_string_loop:
 _print_string_end:
 	pop si
 	pop ax
-	popf
 	ret
 
 // print the word in ax as a hexadecimal number
 _print_byte_hex:
-	pushf
-	push ax
-	push bx
-	push cx
+	pusha
 	mov bl, al
 	mov cx, 2
 _print_word_hex_next:
@@ -59,10 +54,7 @@ _print_word_hex_digit:
 	add al, 0x30
 	call _print_char
 	loop _print_word_hex_next
-	pop cx
-	pop bx
-	pop ax
-	popf
+	popa
 	ret
 
 _print_word_hex:
@@ -84,14 +76,8 @@ _print_dword_hex:
 	ret
 	
 _free_mem:
-	pushf
-	push eax
-	push ebx
-	push ecx
-	push edx
+	pushad
 	push es
-	push di
-	push si
 	
 	// Clear ebx for first call
 	xor ebx, ebx
@@ -155,14 +141,8 @@ _free_mem_ok:
 	jnz _free_mem_next
 	
 _free_mem_nonzero:
-	pop si
-	pop di
 	pop es
-	pop edx
-	pop ecx
-	pop ebx
-	pop eax
-	popf
+	popad
 	ret
 _free_mem_msg_addr:
 	.ascii "a: "
@@ -176,13 +156,11 @@ _free_mem_msg_type:
 
 	.set PORT, 0x3f8
 _read_kernel:
-	push ax
-	push bx
-	push cx
-	push dx
-	push si
-	push di
+	pushad
 
+	// ebx is byte count
+	mov ebx, 0
+	
 	// Disable serial port interrupts
 	mov al, 0x00
 	mov dx, PORT + 1
@@ -226,8 +204,7 @@ _read_kernel_wait:
 	mov dx, PORT
 	inb al, dx
 
-	// Print byte
-	call _print_char
+	inc ebx
 	
 	// Store byte in ds:di
 	stosb
@@ -243,13 +220,17 @@ _read_kernel_is_eok:
 	je _read_kernel_done
 	jmp _read_kernel_wait
 _read_kernel_done:
-	pop di
-	pop si
-	pop dx
-	pop cx
-	pop bx
-	pop ax
+	// Print byte
+	mov si, offset _read_kernek_msg
+	call _print_string
+	
+	mov eax, ebx
+	call _print_word_hex
+	popad
 	ret
+_read_kernek_msg:
+	.ascii "kernel size: "
+	.byte 0
 	
 _protected_mode:
 	mov si, offset _protected_mode_msg
@@ -307,7 +288,7 @@ _gdt:
 _gdt_end:
 
 _protected_mode_msg:
-	.ascii "p"
+	.ascii "\n\rpm\n\r"
 	.byte 0
 	
 _error:

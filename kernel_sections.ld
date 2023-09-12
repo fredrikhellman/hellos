@@ -3,10 +3,14 @@ SECTIONS
 {
   text 0x10000 :
   {
-  kernel.o(.text)
+  *(.text_start)
+  *(.text)
+  *(.rodata)
   }
   data :
   {
-  eok.o(.data)
+  *(.data)
+  *(.bss)
+  eok.o(.eok)
   }
 }
