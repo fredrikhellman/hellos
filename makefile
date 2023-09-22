@@ -9,13 +9,16 @@ eopbr.o:	eopbr.S
 %.o: %.c
 	gcc -c -m32 -fno-stack-protector -fno-pie -nostdlib $^ -o $@
 
+interrupts.o: interrupts.c
+	gcc -c -m32 -fno-stack-protector -mgeneral-regs-only -mno-red-zone -fno-pie -nostdlib $^ -o $@
+
 eok.o:	eok.S
 	as -c --32 -mx86-used-note=no eok.S -o eok.o
 
 image: 	pbr.o eopbr.o
 	ld -T boot_sections.ld pbr.o eopbr.o -o image
 
-kernel: kernel.o eok.o serial.o panic.o
+kernel: kernel.o eok.o serial.o panic.o interrupts.o string.o
 	ld -melf_i386 --orphan-handling=discard -T kernel_sections.ld $^ -o $@
 
 clean:

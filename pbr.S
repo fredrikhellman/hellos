@@ -12,20 +12,17 @@ _start:
 	
 // print ASCII char in al
 _print_char:
-	push ax
-	push bx
+	pusha
 	mov ah, 0xe
 	mov bh, 0
 	mov bl, 1
 	int 0x10
-	pop bx
-	pop ax
+	popa
 	ret
 
 // print null terminated ASCII string in ds:si
 _print_string:
-	push ax
-	push si
+	pusha
 	cld
 _print_string_loop:	
 	lodsb
@@ -34,8 +31,7 @@ _print_string_loop:
 	call _print_char
 	jmp _print_string_loop
 _print_string_end:
-	pop si
-	pop ax
+	popa
 	ret
 
 // print the word in ax as a hexadecimal number
@@ -48,7 +44,7 @@ _print_word_hex_next:
 	mov al, bl
 	and al, 0xF
 	cmp al, 0xA
-	jle _print_word_hex_digit
+	jl _print_word_hex_digit
 	add al, 0x27
 _print_word_hex_digit:	
 	add al, 0x30
@@ -205,7 +201,7 @@ _read_kernel_wait:
 	inb al, dx
 
 	inc ebx
-	
+
 	// Store byte in ds:di
 	stosb
 
@@ -225,7 +221,7 @@ _read_kernel_done:
 	call _print_string
 	
 	mov eax, ebx
-	call _print_word_hex
+	call _print_dword_hex
 	popad
 	ret
 _read_kernek_msg:
@@ -261,7 +257,7 @@ _protected_mode_jump:
  	
 _gdtr:
 _gdtr_limit:
-	.word _gdt_end - _gdt
+	.word _gdt_end - _gdt - 1
 _gdtr_address:
 	.long 0
 _gdt:

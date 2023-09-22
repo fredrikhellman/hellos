@@ -1,5 +1,11 @@
 #include "serial.h"
 #include "panic.h"
+#include "interrupts.h"
+#include "string.h"
+
+void invalid_reference() {
+  asm("int $6");
+}
 
 __attribute__ ((section (".text_start")))
 void start()  {
@@ -11,6 +17,9 @@ void start()  {
   *end = '\0';
   serial_puts("hej ");
   serial_puts(buf);
+
+  register_interrupts();
+  invalid_reference();
   panic();
 }
 
